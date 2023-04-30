@@ -2,24 +2,27 @@ import json
 import datetime
 
 
-def read_json(file) -> list:
+def read_json(file: str) -> list:
     """
     Читаем json и выводим список с одобренные EXECUTED операциями.
-    И главное - исключаем пустой словарь)
-    Сортируем по дате
+    И главное - исключаем пустой словарь.
+    Сортируем по дате.
+    Берём последние 5 операций.
     """
-    with open(file, 'r', encoding='UTF8') as d:
-        data = json.load(d)
-        operate_list = [o for o in data if o.get("state") if o["state"] == "EXECUTED"]
-        return sorted(operate_list, key=lambda o: o['date'])
+    try:
+        with open(file, 'r', encoding='UTF8') as d:
+            data = json.load(d)
+            operate_list = [o for o in data if o.get("state") if o["state"] == "EXECUTED"]
+        return sorted(operate_list, key=lambda o: o['date'])[-5:]
+    except FileNotFoundError:
+        print(f'Не правильно указан путь к файлу')
 
 
-def skip_numbers(file) -> list:
+def skip_numbers(skip_list: list) -> list:
     """
-    Скрываем номера счетов отправителя и получателя, в зависимости от карт
-    берём последние 5 операций
+    Скрываем номера счетов отправителя и получателя, в зависимости от карт, или счетов
     """
-    skip_list = read_json(file)
+
     for o in skip_list:
         o['date'] = datetime.datetime.strptime(o['date'], '%Y-%m-%dT%H:%M:%S.%f').strftime('%d.%m.%Y')
         if 'from' in o:
@@ -40,24 +43,27 @@ def skip_numbers(file) -> list:
             else:
                 o['to'] = f"{new_to[0]}: {new_to[1][0:4]} **** **** {new_to[1][-4:]}"
 
-    return skip_list[:5]
+    return skip_list
 
 
-def form_vision_list(file) -> list:
+def form_vision_list(file) -> str:
     """
     Формируем список нужного формата
     """
-    vision_list = []
-    for o in skip_numbers(file):
+
+    read_list = read_json(file)
+    skip_list = skip_numbers(read_list)
+
+    vision_list = ''
+    for o in skip_list:
         if 'from' in o:
             message = (f"{o['date']} {o['description']} \n"
                        f"{o['from']} -> {o['to']} \n"
-                       f"{o['operationAmount']['amount']} {o['operationAmount']['currency']['name']} \n")
+                       f"{o['operationAmount']['amount']} {o['operationAmount']['currency']['name']} \n \n")
         else:
             message = (f"{o['date']} {o['description']} \n"
                        f"Зачисление на {o['to']} \n"
-                       f"{o['operationAmount']['amount']} {o['operationAmount']['currency']['name']} \n")
+                       f"{o['operationAmount']['amount']} {o['operationAmount']['currency']['name']} \n \n")
+        vision_list += message
 
-        vision_list.append(message)
     return vision_list
-
